@@ -15,6 +15,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const REQUIRED_PACK_PATHS = Object.freeze([
   'package.json',
   'README.md',
+  'THIRD_PARTY_NOTICES.md',
   'index.js',
   'setup-entry.js',
   'openclaw.plugin.json',
@@ -92,7 +93,14 @@ async function main() {
   if (packageJson.peerDependenciesMeta?.openclaw?.optional !== true) {
     errors.push('peerDependenciesMeta.openclaw.optional must be true');
   }
-  if (JSON.stringify(stableRecord(packageJson.dependencies)) !== JSON.stringify({ sharp: '^0.35.3', ws: '^8.19.0' })) {
+  if (
+    JSON.stringify(stableRecord(packageJson.dependencies))
+    !== JSON.stringify({
+      '@iconify-json/twemoji': '1.2.5',
+      sharp: '^0.35.3',
+      ws: '^8.19.0',
+    })
+  ) {
     errors.push('runtime dependencies must stay intentionally small');
   }
   if (manifest.id !== 'claworld') {

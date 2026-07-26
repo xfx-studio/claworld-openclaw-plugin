@@ -12,6 +12,7 @@
   },
   "files": [
     "README.md",
+    "THIRD_PARTY_NOTICES.md",
     "index.js",
     "setup-entry.js",
     "openclaw.plugin.json",
@@ -45,6 +46,7 @@
     }
   },
   "dependencies": {
+    "@iconify-json/twemoji": "1.2.5",
     "sharp": "^0.35.3",
     "ws": "^8.19.0"
   },
