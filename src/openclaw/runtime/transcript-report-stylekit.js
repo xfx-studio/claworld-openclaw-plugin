@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+
 const FULL_WIDTH_RANGES = [
   [0x1100, 0x115f],
   [0x231a, 0x231b],
@@ -183,13 +187,14 @@ const EMOJI_CODEPOINTS = new Set([
   0x2757, 0x27b0, 0x27bf, 0x2b1b, 0x2b1c, 0x2b50, 0x2b55,
 ]);
 
-export const EMOJI_INLINE_UNITS = 1.28;
-export const EMOJI_INLINE_X_OFFSET = -0.055;
+export const EMOJI_INLINE_UNITS = 1.12;
+export const EMOJI_SVG_VIEWBOX_SIZE = 36;
 export const SYMBOL_INLINE_UNITS = 1;
 
 const graphemeSegmenter = typeof Intl.Segmenter === 'function'
   ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
   : null;
+let emojiIconSet = null;
 
 function quotedFontFamily(families) {
   return [...new Set(families)].map((family) => `'${family}'`).join(', ') + ', sans-serif';
@@ -247,32 +252,41 @@ export function escapeXml(value) {
     .replaceAll("'", '&#x27;');
 }
 
-export function emojiTextPresentation(value) {
-  const output = [];
-  for (const character of String(value ?? '')) {
-    const codePoint = character.codePointAt(0) || 0;
-    if (codePoint === 0x200d || (codePoint >= 0xe0020 && codePoint <= 0xe007f)) continue;
-    if (codePoint === 0xfe0f) {
-      output.push('\ufe0e');
-      continue;
-    }
-    output.push(character);
-    if (
-      codePoint !== 0xfe0e
-      && (isEmojiCodePoint(codePoint) || isEmojiModifier(codePoint) || isRegionalIndicator(codePoint))
-    ) {
-      output.push('\ufe0e');
-    }
-  }
-  return output.join('').replace(/\ufe0e{2,}/gu, '\ufe0e');
+function loadEmojiIconSet() {
+  if (emojiIconSet) return emojiIconSet;
+  emojiIconSet = {
+    chars: require('@iconify-json/twemoji/chars.json'),
+    icons: require('@iconify-json/twemoji/icons.json').icons,
+    resolvedBodies: new Map(),
+  };
+  return emojiIconSet;
 }
 
-export function emojiPresentationGlyphCount(value) {
-  const glyphs = [...emojiTextPresentation(value)].filter((character) => {
-    const codePoint = character.codePointAt(0) || 0;
-    return codePoint !== 0xfe0e && !/\p{Mark}/u.test(character);
-  });
-  return Math.max(1, glyphs.length);
+export function emojiAssetKey(value) {
+  return [...String(value ?? '')]
+    .map((character) => character.codePointAt(0) || 0)
+    .filter((codePoint) => codePoint !== 0xfe0e && codePoint !== 0xfe0f)
+    .map((codePoint) => codePoint.toString(16).padStart(4, '0'))
+    .join('-');
+}
+
+export function emojiSvgBody(value) {
+  const { chars, icons, resolvedBodies } = loadEmojiIconSet();
+  const key = emojiAssetKey(value);
+  if (resolvedBodies.has(key)) return resolvedBodies.get(key);
+  const iconName = chars[key];
+  const sourceBody = iconName ? icons[iconName]?.body || null : null;
+  if (!sourceBody) {
+    resolvedBodies.set(key, null);
+    return null;
+  }
+  const idPrefix = `emoji-${key}-`;
+  const body = sourceBody
+    .replace(/\bid="([^"]+)"/gu, (_match, id) => `id="${idPrefix}${id}"`)
+    .replace(/\bhref="#([^"]+)"/gu, (_match, id) => `href="#${idPrefix}${id}"`)
+    .replace(/url\(#([^)]+)\)/gu, (_match, id) => `url(#${idPrefix}${id})`);
+  resolvedBodies.set(key, body);
+  return body;
 }
 
 export function fontFamily() {
@@ -389,7 +403,7 @@ export function charUnits(character) {
 }
 
 export function clusterUnits(cluster) {
-  if (isEmojiCluster(cluster)) return emojiPresentationGlyphCount(cluster) * EMOJI_INLINE_UNITS;
+  if (isEmojiCluster(cluster)) return EMOJI_INLINE_UNITS;
   if (isTextSymbolCluster(cluster)) return SYMBOL_INLINE_UNITS;
   return [...String(cluster ?? '')].reduce((total, character) => total + charUnits(character), 0);
 }
@@ -399,7 +413,7 @@ export function textUnits(text) {
 }
 
 export function clusterCols(cluster) {
-  if (isEmojiCluster(cluster)) return emojiPresentationGlyphCount(cluster) * 2;
+  if (isEmojiCluster(cluster)) return 2;
   return [...String(cluster ?? '')].reduce((total, character) => {
     if (character === '\n' || isCombiningCharacter(character)) return total;
     return total + (isFullWidthCharacter(character) ? 2 : 1);

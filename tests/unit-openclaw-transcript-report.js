@@ -44,6 +44,8 @@ import {
   topicRenderUnits,
 } from '../src/openclaw/runtime/transcript-report-comic-grid.js';
 import {
+  emojiAssetKey,
+  emojiSvgBody,
   fontCssRules,
   fontFamily,
   graphemeClusters,
@@ -215,9 +217,19 @@ async function rasterTextBounds(value, { fontSize = 40, fontWeight = 900 } = {})
   let maxX = -1;
   let minY = info.height;
   let maxY = -1;
+  let colorfulPixels = 0;
   for (let y = 0; y < info.height; y += 1) {
     for (let x = 0; x < info.width; x += 1) {
       const offset = (y * info.width + x) * info.channels;
+      const red = data[offset];
+      const green = data[offset + 1];
+      const blue = data[offset + 2];
+      if (
+        Math.max(red, green, blue) - Math.min(red, green, blue) >= 30
+        && Math.min(red, green, blue) < 240
+      ) {
+        colorfulPixels += 1;
+      }
       if (data[offset] >= 245 && data[offset + 1] >= 245 && data[offset + 2] >= 245) continue;
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x);
@@ -229,6 +241,7 @@ async function rasterTextBounds(value, { fontSize = 40, fontWeight = 900 } = {})
     body,
     pixels: maxX < minX ? 0 : (maxX - minX + 1) * (maxY - minY + 1),
     width: maxX < minX ? 0 : maxX - minX + 1,
+    colorfulPixels,
   };
 }
 
@@ -2078,7 +2091,7 @@ async function assertManualContractAndVisualHelpers(workspaceRoot) {
 }
 
 async function assertSymbolAndSharpRendering(workspaceRoot) {
-  const binaryLine = '☷ Heaven = 111 · ☵ Water = 101 · ☶ Mountain = 100 · 中文 👍🏽';
+  const binaryLine = '☷ Heaven = 111 · ☵ Water = 101 · 中文 😄 😎 🤝 👍🏽';
   const scripts = textRuns(binaryLine).map(([, script]) => script);
   assert.ok(scripts.includes('symbol'));
   assert.ok(scripts.includes('default'));
@@ -2089,15 +2102,34 @@ async function assertSymbolAndSharpRendering(workspaceRoot) {
   const wideLatinWithSymbol = await rasterTextBounds('WWWW★');
   assert.match(wideLatinWithSymbol.body, /<tspan/u);
   assert.ok(wideLatinWithSymbol.width > wideLatin.width + 20, 'symbol run must advance after wide Latin text');
-  for (const emoji of ['😀', '👨‍👩‍👧‍👦', '👍🏽', '🇨🇳']) {
+  const colorfulEmojiSamples = new Set(['😀', '👨‍👩‍👧‍👦', '👍🏽', '🇨🇳', '🤝', '1️⃣', '#️⃣']);
+  const emojiSamples = [...colorfulEmojiSamples, '©️', '®️', '🏴', '🏁'];
+  assert.equal(emojiAssetKey('👨‍👩‍👧‍👦'), '1f468-200d-1f469-200d-1f467-200d-1f466');
+  for (const emoji of emojiSamples) {
+    assert.ok(emojiSvgBody(emoji), `${emoji} must resolve to a bundled vector asset`);
     const bounds = await rasterTextBounds(emoji);
     assert.ok(bounds.pixels > 0, `${emoji} must produce visible Sharp pixels`);
+    if (colorfulEmojiSamples.has(emoji)) {
+      assert.ok(bounds.colorfulPixels > 20, `${emoji} must retain colored pixels through Sharp`);
+    }
+    assert.match(bounds.body, /class="emoji-asset"/u);
+    assert.equal(bounds.body.includes('\ufe0e'), false);
   }
+  const namespacedFlags = renderInlineTextSvg('🏴🏁', 20, 60, {
+    fontSize: 40,
+    fontWeight: 900,
+    fill: '#000000',
+  });
+  assert.match(namespacedFlags, /id="emoji-1f3f4-/u);
+  assert.match(namespacedFlags, /href="#emoji-1f3f4-/u);
+  assert.match(namespacedFlags, /id="emoji-1f3c1-/u);
+  assert.match(namespacedFlags, /href="#emoji-1f3c1-/u);
+  assert.doesNotMatch(namespacedFlags, /(?:id|href)="#?SVG/u);
   const repeatedFamily = '👨‍👩‍👧‍👦'.repeat(4);
   const repeatedFamilyBounds = await rasterTextBounds(repeatedFamily, { fontSize: 18 });
   assert.ok(
     repeatedFamilyBounds.width <= Math.ceil(textUnits(repeatedFamily) * 18) + 2,
-    'fallback emoji width budget must contain the actual Sharp raster',
+    'vector emoji width budget must contain the actual Sharp raster',
   );
   for (const wideCharacter of ['আ', 'ஔ', 'ౠ', 'ಊ']) {
     const complexScriptItem = measureTranscriptItem({
@@ -2147,6 +2179,8 @@ async function assertSymbolAndSharpRendering(workspaceRoot) {
   const svg = (await readSvgPages(report)).join('\n');
   assert.match(svg, /font-symbol/u);
   assert.match(svg, /Noto Sans Symbols 2/u);
+  assert.match(svg, /class="emoji-asset"/u);
+  assert.match(svg, /data-emoji="🤝"/u);
   assert.match(svg, /101/u);
   assert.ok((svg.match(/class="tag-icons"/gu) || []).length >= 2, 'long tag rows must wrap');
   assert.equal(svg.includes('\u0001'), false);

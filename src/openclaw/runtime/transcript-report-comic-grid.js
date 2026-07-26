@@ -2,7 +2,9 @@ import {
   clipDisplay,
   displayCols,
   ellipsizeText,
-  emojiTextPresentation,
+  EMOJI_INLINE_UNITS,
+  EMOJI_SVG_VIEWBOX_SIZE,
+  emojiSvgBody,
   escapeXml,
   fontCssRules,
   fontFamily,
@@ -492,21 +494,66 @@ export function renderInlineTextSvg(
 ) {
   const runs = textRuns(text);
   const baseClasses = String(className || '').split(/\s+/u).filter(Boolean);
+  const hasEmoji = runs.some(([, script]) => script === 'emoji');
+  if (hasEmoji) {
+    const segments = runs.flatMap(([run, script]) => (
+      script === 'emoji'
+        ? graphemeClusters(run).map((cluster) => [cluster, script])
+        : [[run, script]]
+    ));
+    const advances = segments.map(([run, script]) => (
+      (script === 'emoji' ? EMOJI_INLINE_UNITS : textUnits(run)) * fontSize
+    ));
+    const totalWidth = advances.reduce((sum, width) => sum + width, 0);
+    let cursorX = anchor === 'middle'
+      ? x - totalWidth / 2
+      : anchor === 'end'
+        ? x - totalWidth
+        : x;
+    const parts = [];
+    segments.forEach(([run, script], index) => {
+      const advance = advances[index];
+      if (script === 'emoji') {
+        const body = emojiSvgBody(run);
+        if (body) {
+          const iconSize = fontSize;
+          const iconX = cursorX + (advance - iconSize) / 2;
+          const iconY = y - fontSize * 0.82;
+          const scale = iconSize / EMOJI_SVG_VIEWBOX_SIZE;
+          parts.push(
+            `<g class="emoji-asset" data-emoji="${escapeXml(run)}" `
+            + `transform="translate(${fixed(iconX)} ${fixed(iconY)}) scale(${fixed(scale, 5)})">${body}</g>`,
+          );
+        } else {
+          const classes = [...baseClasses, 'font-emoji'].join(' ');
+          parts.push(
+            `<text class="${classes}" x="${fixed(cursorX)}" y="${fixed(y)}" `
+            + `font-size="${fontSize}" font-weight="400" fill="${fill}">${escapeXml(run)}</text>`,
+          );
+        }
+      } else {
+        const classes = [...baseClasses, `font-${script}`].join(' ');
+        parts.push(
+          `<text class="${classes}" x="${fixed(cursorX)}" y="${fixed(y)}" `
+          + `font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${escapeXml(run)}</text>`,
+        );
+      }
+      cursorX += advance;
+    });
+    return `<g class="${baseClasses.join(' ')}">${parts.join('\n')}</g>`;
+  }
+
   if (runs.length === 1) {
     const [run, script] = runs[0];
     const classes = [...baseClasses, `font-${script}`].join(' ');
-    const weight = script === 'emoji' ? 400 : fontWeight;
     const anchorAttribute = anchor === 'start' ? '' : ` text-anchor="${anchor}"`;
-    const visibleRun = script === 'emoji' ? emojiTextPresentation(run) : run;
-    return `<text class="${classes}" x="${fixed(x)}" y="${fixed(y)}"${anchorAttribute} font-size="${fontSize}" font-weight="${weight}" fill="${fill}">${escapeXml(visibleRun)}</text>`;
+    return `<text class="${classes}" x="${fixed(x)}" y="${fixed(y)}"${anchorAttribute} font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${escapeXml(run)}</text>`;
   }
 
   const anchorAttribute = anchor === 'start' ? '' : ` text-anchor="${anchor}"`;
   const spans = runs.map(([run, script]) => {
     const classes = [...baseClasses, `font-${script}`].join(' ');
-    const weight = script === 'emoji' ? 400 : fontWeight;
-    const visibleRun = script === 'emoji' ? emojiTextPresentation(run) : run;
-    return `<tspan class="${classes}" font-weight="${weight}">${escapeXml(visibleRun)}</tspan>`;
+    return `<tspan class="${classes}" font-weight="${fontWeight}">${escapeXml(run)}</tspan>`;
   }).join('\n');
   return `<text class="${baseClasses.join(' ')}" x="${fixed(x)}" y="${fixed(y)}"${anchorAttribute} font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${spans}</text>`;
 }
