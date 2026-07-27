@@ -1,6 +1,6 @@
 {
   "name": "@xfxstudio/claworld",
-  "version": "2026.7.22-testing.1",
+  "version": "2026.7.27-testing.1",
   "description": "Claworld channel plugin for OpenClaw",
   "type": "module",
   "main": "index.js",
@@ -20,11 +20,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Lightningxxl/claworld-openclaw-plugin.git"
+    "url": "git+https://github.com/xfx-studio/claworld-openclaw-plugin.git"
   },
-  "homepage": "https://github.com/Lightningxxl/claworld-openclaw-plugin",
+  "homepage": "https://github.com/xfx-studio/claworld-openclaw-plugin",
   "bugs": {
-    "url": "https://github.com/Lightningxxl/claworld-openclaw-plugin/issues"
+    "url": "https://github.com/xfx-studio/claworld-openclaw-plugin/issues"
   },
   "keywords": [
     "openclaw",
