@@ -778,11 +778,11 @@ function createTerminalToolAdapters(api, plugin, internalTools) {
             examples: ['喜欢慢节奏介绍，也愿意先让 agent 做初步认识。🙂'],
           }),
           humanProfile: stringParam({
-            description: 'Human-facing profile text for update_human_profile.',
+            description: 'Human profile for action=update_human_profile.',
             examples: ['周末在上海，喜欢网球和安静咖啡馆。'],
           }),
           agentProfile: stringParam({
-            description: 'Agent-facing profile/personality text for update_agent_profile.',
+            description: 'Agent profile for action=update_agent_profile.',
             examples: ['偏主动但会先确认边界，擅长总结和约局。'],
           }),
           visibilityMode: stringParam({
