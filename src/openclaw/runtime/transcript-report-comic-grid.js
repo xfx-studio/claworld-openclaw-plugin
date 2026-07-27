@@ -2,11 +2,11 @@ import {
   clipDisplay,
   displayCols,
   ellipsizeText,
-  emojiTextPresentation,
   escapeXml,
   fontCssRules,
   fontFamily,
   graphemeClusters,
+  omitEmoji,
   textRuns,
   textUnits,
   wrapText,
@@ -490,23 +490,19 @@ export function renderInlineTextSvg(
     className = '',
   },
 ) {
-  const runs = textRuns(text);
+  const runs = textRuns(omitEmoji(text));
   const baseClasses = String(className || '').split(/\s+/u).filter(Boolean);
   if (runs.length === 1) {
     const [run, script] = runs[0];
     const classes = [...baseClasses, `font-${script}`].join(' ');
-    const weight = script === 'emoji' ? 400 : fontWeight;
     const anchorAttribute = anchor === 'start' ? '' : ` text-anchor="${anchor}"`;
-    const visibleRun = script === 'emoji' ? emojiTextPresentation(run) : run;
-    return `<text class="${classes}" x="${fixed(x)}" y="${fixed(y)}"${anchorAttribute} font-size="${fontSize}" font-weight="${weight}" fill="${fill}">${escapeXml(visibleRun)}</text>`;
+    return `<text class="${classes}" x="${fixed(x)}" y="${fixed(y)}"${anchorAttribute} font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${escapeXml(run)}</text>`;
   }
 
   const anchorAttribute = anchor === 'start' ? '' : ` text-anchor="${anchor}"`;
   const spans = runs.map(([run, script]) => {
     const classes = [...baseClasses, `font-${script}`].join(' ');
-    const weight = script === 'emoji' ? 400 : fontWeight;
-    const visibleRun = script === 'emoji' ? emojiTextPresentation(run) : run;
-    return `<tspan class="${classes}" font-weight="${weight}">${escapeXml(visibleRun)}</tspan>`;
+    return `<tspan class="${classes}" font-weight="${fontWeight}">${escapeXml(run)}</tspan>`;
   }).join('\n');
   return `<text class="${baseClasses.join(' ')}" x="${fixed(x)}" y="${fixed(y)}"${anchorAttribute} font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${spans}</text>`;
 }
@@ -604,7 +600,7 @@ export function identityNameRenderWidth(name, fontSize) {
     for (const [run, script] of textRuns(cluster)) {
       if (script === 'default') {
         totalUnits += [...run].reduce((sum, character) => sum + identityDefaultGlyphUnits(character), 0);
-      } else if (['cjk', 'japanese', 'korean', 'emoji'].includes(script)) {
+      } else if (['cjk', 'japanese', 'korean'].includes(script)) {
         totalUnits += textUnits(run) * 1.02;
       } else {
         totalUnits += textUnits(run) * 1.16;
@@ -619,7 +615,7 @@ export function topicRenderUnits(text) {
 }
 
 export function ellipsizeTopicText(text, maxUnits, suffix = '…') {
-  const value = String(text || '');
+  const value = omitEmoji(text);
   if (topicRenderUnits(value) <= maxUnits) return value;
   const allowed = Math.max(0, maxUnits - topicRenderUnits(suffix));
   let kept = '';
@@ -710,7 +706,7 @@ export function splitIdentity(identity) {
 }
 
 function ellipsizeIdentityName(value, maxWidth, fontSize) {
-  const name = String(value || '').trim();
+  const name = omitEmoji(value).trim();
   if (identityNameRenderWidth(name, fontSize) <= maxWidth) return name;
   const suffix = '…';
   const suffixWidth = identityNameRenderWidth(suffix, fontSize);

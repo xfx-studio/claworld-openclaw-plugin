@@ -47,6 +47,7 @@ import {
   fontCssRules,
   fontFamily,
   graphemeClusters,
+  omitEmoji,
   textRuns,
   textUnits,
   wrapText,
@@ -2089,16 +2090,26 @@ async function assertSymbolAndSharpRendering(workspaceRoot) {
   const wideLatinWithSymbol = await rasterTextBounds('WWWW★');
   assert.match(wideLatinWithSymbol.body, /<tspan/u);
   assert.ok(wideLatinWithSymbol.width > wideLatin.width + 20, 'symbol run must advance after wide Latin text');
-  for (const emoji of ['😀', '👨‍👩‍👧‍👦', '👍🏽', '🇨🇳']) {
+  assert.equal(omitEmoji('before 👍🏽 after'), 'before after');
+  for (const emoji of ['😀', '👨‍👩‍👧‍👦', '👍🏽', '🇨🇳', '1️⃣']) {
     const bounds = await rasterTextBounds(emoji);
-    assert.ok(bounds.pixels > 0, `${emoji} must produce visible Sharp pixels`);
+    assert.equal(bounds.pixels, 0, `${emoji} must not produce Sharp pixels`);
+    assert.equal(textUnits(`A${emoji}B`), textUnits('AB'));
+    assert.deepEqual(wrapText(`A${emoji}B`, 12), wrapText('AB', 12));
+    assert.equal(
+      renderInlineTextSvg(`A${emoji}B`, 20, 60, {
+        fontSize: 18,
+        fontWeight: 800,
+        fill: '#000000',
+      }),
+      renderInlineTextSvg('AB', 20, 60, {
+        fontSize: 18,
+        fontWeight: 800,
+        fill: '#000000',
+      }),
+      `${emoji} must not leave inline layout space`,
+    );
   }
-  const repeatedFamily = '👨‍👩‍👧‍👦'.repeat(4);
-  const repeatedFamilyBounds = await rasterTextBounds(repeatedFamily, { fontSize: 18 });
-  assert.ok(
-    repeatedFamilyBounds.width <= Math.ceil(textUnits(repeatedFamily) * 18) + 2,
-    'fallback emoji width budget must contain the actual Sharp raster',
-  );
   for (const wideCharacter of ['আ', 'ஔ', 'ౠ', 'ಊ']) {
     const complexScriptItem = measureTranscriptItem({
       kind: 'message',
@@ -2140,6 +2151,9 @@ async function assertSymbolAndSharpRendering(workspaceRoot) {
             text: 'many tags [[alpha]] [[bravo]] [[charlie]] [[delta]] [[echo]] [[foxtrot]] [[golf]] [[hotel]]',
           },
           { from: 'peer', text: 'control\u0001safe' },
+          { from: 'local', text: 'tight A👍🏽B [like]' },
+          { from: 'peer', text: 'spaced C 👨‍👩‍👧‍👦 D [request conversation end]' },
+          { from: 'local', text: '🇨🇳' },
         ],
       },
     },
@@ -2150,6 +2164,21 @@ async function assertSymbolAndSharpRendering(workspaceRoot) {
   assert.match(svg, /101/u);
   assert.ok((svg.match(/class="tag-icons"/gu) || []).length >= 2, 'long tag rows must wrap');
   assert.equal(svg.includes('\u0001'), false);
+  for (const emoji of ['👍🏽', '👨‍👩‍👧‍👦', '🇨🇳']) assert.equal(svg.includes(emoji), false);
+  assert.equal(svg.includes('font-emoji'), false);
+  assert.match(svg, /class="tag-icon tag-like"/u);
+  assert.match(svg, /class="tag-icon tag-request-end"/u);
+
+  const spec = await readBubbleSpec(report);
+  const textMessages = spec.messages.filter((message) => message.kind === 'text');
+  assert.equal(spec.scene.header.messageCount, 5, 'an emoji-only message must not create a blank bubble');
+  assert.ok(textMessages.some((message) => message.text === 'tight AB'));
+  assert.ok(textMessages.some((message) => message.text === 'spaced C D'));
+  assert.deepEqual(textMessages.find((message) => message.text === 'tight AB')?.tags, ['like']);
+  assert.deepEqual(
+    textMessages.find((message) => message.text === 'spaced C D')?.tags,
+    ['request end'],
+  );
 
   const image = sharp(report.artifacts.pngPages[0].path);
   const metadata = await image.metadata();

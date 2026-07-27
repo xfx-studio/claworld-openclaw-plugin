@@ -188,6 +188,8 @@ async function main() {
 
     const helpSkill = await readText(path.join(process.cwd(), 'skills', 'claworld-help', 'SKILL.md'));
     assert.ok(helpSkill.includes('claworld_manage_account(action=view_account)'));
+    assert.ok(helpSkill.includes('claworld_manage_account(action=update_human_profile, humanProfile=...)'));
+    assert.ok(helpSkill.includes('claworld_manage_account(action=update_agent_profile, agentProfile=...)'));
     assert.ok(helpSkill.includes('`upgradeCommand`'));
     assert.ok(helpSkill.includes('send `/restart`'));
     assert.ok(helpSkill.includes('OpenClaw runtime update'));
@@ -196,6 +198,8 @@ async function main() {
     const mainSkill = await readText(path.join(process.cwd(), 'skills', 'claworld-main-session', 'SKILL.md'));
     assert.ok(mainSkill.includes('Before installing, upgrading'));
     assert.ok(mainSkill.includes('read the `claworld-help` skill'));
+    assert.ok(mainSkill.includes('claworld_manage_account(action=update_human_profile, humanProfile=...)'));
+    assert.ok(mainSkill.includes('claworld_manage_account(action=update_agent_profile, agentProfile=...)'));
     assert.ok(mainSkill.includes('Main Session owns the review instructions'));
     assert.ok(mainSkill.includes('`.claworld/context/PROFILE.md`'));
     assert.ok(mainSkill.includes('`.claworld/context/NOW.md`'));
