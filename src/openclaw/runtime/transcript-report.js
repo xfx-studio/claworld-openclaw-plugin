@@ -8,7 +8,7 @@ import {
   paginateTranscriptItems,
   renderTranscriptPageSvg,
 } from './transcript-report-comic-grid.js';
-import { displayCols } from './transcript-report-stylekit.js';
+import { displayCols, omitEmoji } from './transcript-report-stylekit.js';
 import {
   appendClaworldJournalEvent,
   withClaworldSessionDirectoryWriteLock,
@@ -1669,7 +1669,7 @@ function normalizeMessages(rawMessages, localAgentId, args, headerContext = {}) 
     }
     if (!messageText) return;
     const extracted = extractControlTags(messageText);
-    const cleanedText = stripInternalMarkup(redactText(extracted.text));
+    const cleanedText = omitEmoji(stripInternalMarkup(redactText(extracted.text)));
     if (!cleanedText && !extracted.tags.length) return;
     normalized.push({
       id: messageId,

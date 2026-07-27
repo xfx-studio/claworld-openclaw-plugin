@@ -98,15 +98,6 @@ const SCRIPT_LETTER_UNITS = Object.freeze({
   arabic: 1.15,
 });
 
-const SYSTEM_EMOJI_FONT_FAMILIES = [
-  'Symbola',
-  'Noto Emoji',
-  'Noto Sans Symbols 2',
-  'Apple Color Emoji',
-  'Segoe UI Emoji',
-  'Noto Color Emoji',
-];
-
 const SYSTEM_SYMBOL_FONT_FAMILIES = [
   'Segoe UI Symbol',
   'Noto Sans Symbols 2',
@@ -152,7 +143,6 @@ const SYSTEM_UI_FONT_FAMILIES = [
   'Noto Sans Khmer',
   'Noto Sans Myanmar',
   'Noto Sans Ethiopic',
-  ...SYSTEM_EMOJI_FONT_FAMILIES,
 ];
 
 const SCRIPT_FONT_FAMILIES = Object.freeze({
@@ -183,8 +173,6 @@ const EMOJI_CODEPOINTS = new Set([
   0x2757, 0x27b0, 0x27bf, 0x2b1b, 0x2b1c, 0x2b50, 0x2b55,
 ]);
 
-export const EMOJI_INLINE_UNITS = 1.28;
-export const EMOJI_INLINE_X_OFFSET = -0.055;
 export const SYMBOL_INLINE_UNITS = 1;
 
 const graphemeSegmenter = typeof Intl.Segmenter === 'function'
@@ -247,40 +235,11 @@ export function escapeXml(value) {
     .replaceAll("'", '&#x27;');
 }
 
-export function emojiTextPresentation(value) {
-  const output = [];
-  for (const character of String(value ?? '')) {
-    const codePoint = character.codePointAt(0) || 0;
-    if (codePoint === 0x200d || (codePoint >= 0xe0020 && codePoint <= 0xe007f)) continue;
-    if (codePoint === 0xfe0f) {
-      output.push('\ufe0e');
-      continue;
-    }
-    output.push(character);
-    if (
-      codePoint !== 0xfe0e
-      && (isEmojiCodePoint(codePoint) || isEmojiModifier(codePoint) || isRegionalIndicator(codePoint))
-    ) {
-      output.push('\ufe0e');
-    }
-  }
-  return output.join('').replace(/\ufe0e{2,}/gu, '\ufe0e');
-}
-
-export function emojiPresentationGlyphCount(value) {
-  const glyphs = [...emojiTextPresentation(value)].filter((character) => {
-    const codePoint = character.codePointAt(0) || 0;
-    return codePoint !== 0xfe0e && !/\p{Mark}/u.test(character);
-  });
-  return Math.max(1, glyphs.length);
-}
-
 export function fontFamily() {
   return quotedFontFamily(SYSTEM_UI_FONT_FAMILIES);
 }
 
 export function fontFamilyForScript(script) {
-  if (script === 'emoji') return quotedFontFamily(SYSTEM_EMOJI_FONT_FAMILIES);
   if (script === 'symbol') {
     return quotedFontFamily([...SYSTEM_SYMBOL_FONT_FAMILIES, ...SYSTEM_UI_FONT_FAMILIES]);
   }
@@ -322,6 +281,18 @@ export function isEmojiCluster(cluster) {
   return codePoints.some(isEmojiCodePoint);
 }
 
+export function omitEmoji(value) {
+  const input = String(value ?? '');
+  const clusters = graphemeClusters(input);
+  if (!clusters.some(isEmojiCluster)) return input;
+  return clusters
+    .filter((cluster) => !isEmojiCluster(cluster))
+    .join('')
+    .replace(/[^\S\r\n]{2,}/gu, ' ')
+    .replace(/[^\S\r\n]*\r?\n(?:[^\S\r\n]*\r?\n)+[^\S\r\n]*/gu, '\n')
+    .trim();
+}
+
 export function isTextSymbolCluster(cluster) {
   const value = String(cluster ?? '');
   if (!value || isEmojiCluster(value)) return false;
@@ -339,12 +310,8 @@ export function textRuns(text) {
     runs.push([normal, textScript(normal)]);
     normal = '';
   };
-  for (const cluster of graphemeClusters(text)) {
-    const specialScript = isEmojiCluster(cluster)
-      ? 'emoji'
-      : isTextSymbolCluster(cluster)
-        ? 'symbol'
-        : '';
+  for (const cluster of graphemeClusters(omitEmoji(text))) {
+    const specialScript = isTextSymbolCluster(cluster) ? 'symbol' : '';
     if (!specialScript) {
       normal += cluster;
       continue;
@@ -389,17 +356,18 @@ export function charUnits(character) {
 }
 
 export function clusterUnits(cluster) {
-  if (isEmojiCluster(cluster)) return emojiPresentationGlyphCount(cluster) * EMOJI_INLINE_UNITS;
+  if (isEmojiCluster(cluster)) return 0;
   if (isTextSymbolCluster(cluster)) return SYMBOL_INLINE_UNITS;
   return [...String(cluster ?? '')].reduce((total, character) => total + charUnits(character), 0);
 }
 
 export function textUnits(text) {
-  return graphemeClusters(text).reduce((total, cluster) => total + clusterUnits(cluster), 0);
+  return graphemeClusters(omitEmoji(text))
+    .reduce((total, cluster) => total + clusterUnits(cluster), 0);
 }
 
 export function clusterCols(cluster) {
-  if (isEmojiCluster(cluster)) return emojiPresentationGlyphCount(cluster) * 2;
+  if (isEmojiCluster(cluster)) return 0;
   return [...String(cluster ?? '')].reduce((total, character) => {
     if (character === '\n' || isCombiningCharacter(character)) return total;
     return total + (isFullWidthCharacter(character) ? 2 : 1);
@@ -407,7 +375,8 @@ export function clusterCols(cluster) {
 }
 
 export function displayCols(text) {
-  return graphemeClusters(text).reduce((total, cluster) => total + clusterCols(cluster), 0);
+  return graphemeClusters(omitEmoji(text))
+    .reduce((total, cluster) => total + clusterCols(cluster), 0);
 }
 
 export function wrapTokens(paragraph) {
@@ -418,11 +387,11 @@ export function wrapTokens(paragraph) {
     tokens.push(current);
     current = '';
   };
-  for (const cluster of graphemeClusters(paragraph)) {
+  for (const cluster of graphemeClusters(omitEmoji(paragraph))) {
     if (/^\s+$/u.test(cluster)) {
       flush();
       tokens.push(' ');
-    } else if (isEmojiCluster(cluster) || clusterCols(cluster) >= 2) {
+    } else if (clusterCols(cluster) >= 2) {
       flush();
       tokens.push(cluster);
     } else {
@@ -435,7 +404,7 @@ export function wrapTokens(paragraph) {
 
 export function wrapText(text, maxUnits) {
   const lines = [];
-  for (const paragraph of String(text ?? '').split(/\r?\n/)) {
+  for (const paragraph of omitEmoji(text).split(/\r?\n/)) {
     let current = '';
     let currentUnits = 0;
     for (const token of wrapTokens(paragraph)) {
@@ -475,7 +444,7 @@ export function wrapText(text, maxUnits) {
 }
 
 export function ellipsizeText(text, maxUnits, suffix = '...') {
-  const value = String(text ?? '');
+  const value = omitEmoji(text);
   if (textUnits(value) <= maxUnits) return value;
   const allowed = Math.max(0, maxUnits - textUnits(suffix));
   let kept = '';
@@ -490,7 +459,7 @@ export function ellipsizeText(text, maxUnits, suffix = '...') {
 }
 
 export function clipDisplay(text, maxCols) {
-  const value = String(text ?? '');
+  const value = omitEmoji(text);
   if (displayCols(value) <= maxCols) return value;
   const suffix = '...';
   const target = Math.max(0, maxCols - suffix.length);
