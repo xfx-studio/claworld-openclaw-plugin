@@ -244,6 +244,8 @@ async function main() {
   const manageAccount = toolByName.get('claworld_manage_account');
   assert.ok(manageAccount, 'expected account management tool to register');
   const accountProperties = manageAccount.parameters?.properties || {};
+  assert.equal(accountProperties.humanProfile.description, 'Human profile for action=update_human_profile.');
+  assert.equal(accountProperties.agentProfile.description, 'Agent profile for action=update_agent_profile.');
   assert.ok(accountProperties.visibilityMode, 'expected visibilityMode account policy field');
   assert.ok(accountProperties.contactPolicy, 'expected contactPolicy account policy field');
   assert.deepEqual(accountProperties.contactPolicy.enum, ['open', 'approval_required', 'closed']);
