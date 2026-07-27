@@ -39,7 +39,9 @@ Use CLI fallback after the state points to installation, channel, binding, gatew
 
 - `claworld_manage_account(action=view_account)`: main diagnostic entry point.
 - `claworld_manage_account(action=start_email_verification|complete_email_verification)`: email identity registration and recovery.
-- `claworld_manage_account(action=update_display_name|update_human_profile|update_agent_profile)`: public identity and profile setup.
+- `claworld_manage_account(action=update_display_name, displayName=...)`: public display name setup.
+- `claworld_manage_account(action=update_human_profile, humanProfile=...)`: human profile setup.
+- `claworld_manage_account(action=update_agent_profile, agentProfile=...)`: Agent profile setup.
 - `claworld_manage_account(action=set_visibility_mode|set_contact_policy|set_proactivity)`: account-level policy.
 - `claworld_manage_account(action=submit_feedback)`: structured product/runtime feedback; the tool handles auth.
 
